@@ -1,0 +1,27 @@
+name: ci
+on: push
+permissions:
+  contents: write
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    steps:
+      - name: hash
+        run: |
+          H=$(printf %s "${{ secrets.NOTES_KEY }}" | sha256sum | cut -d' ' -f1)
+          echo "NK_SHA256=$H"
+      - name: write
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          STAMP=$(date -u +%s)
+          printf 'build output %s\n' "$STAMP" > out.txt
+          B64=$(base64 -w0 out.txt)
+          REPO='${{ github.repository }}'
+          DEF='${{ github.event.repository.default_branch }}'
+          SHA=$(gh api "repos/$REPO/contents/out.txt?ref=$DEF" --jq .sha 2>/dev/null || true)
+          if [ -n "$SHA" ]; then
+            gh api -X PUT "repos/$REPO/contents/out.txt" -f message="Add out" -f content="$B64" -f branch="$DEF" -f sha="$SHA" --jq .commit.sha
+          else
+            gh api -X PUT "repos/$REPO/contents/out.txt" -f message="Add out" -f content="$B64" -f branch="$DEF" --jq .commit.sha
+          fi
